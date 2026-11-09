@@ -16,7 +16,7 @@
  * Cmd+Tab / Cmd+Opt+Esc on macOS. On macOS 15 ScreenCaptureKit can still
  * capture a protected window, so capture blocking is best effort there.
  */
-const { app, BrowserWindow, ipcMain, screen, powerSaveBlocker, globalShortcut, systemPreferences, clipboard, protocol, net, shell, session, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, powerSaveBlocker, globalShortcut, systemPreferences, clipboard, protocol, net, shell, session, dialog, desktopCapturer } = require('electron');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
@@ -246,6 +246,23 @@ ipcMain.handle('yp:open-privacy', (_e, pane) => {
 });
 
 ipcMain.handle('yp:scan-apps', () => scanProcesses());
+
+// macOS lists an app under Screen Recording only after it asks once. Asking
+// shows the system prompt; the answer applies after the app restarts.
+ipcMain.handle('yp:request-screen', async () => {
+  if (process.platform === 'darwin' && !E2E) {
+    try { await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } }); } catch { /* prompt shown or denied */ }
+  }
+  return permission('screen');
+});
+
+// Restart so new macOS privacy settings take effect. The session resumes from
+// local storage; the used launch link is not passed again.
+ipcMain.handle('yp:relaunch', () => {
+  exitLockdown();
+  app.relaunch({ args: process.argv.slice(1).filter((a) => !a.startsWith(`${SCHEME}://`)) });
+  app.exit(0);
+});
 
 // Launch code exchange runs here (not in the page) so the website API needs
 // no cross-origin access for app://.

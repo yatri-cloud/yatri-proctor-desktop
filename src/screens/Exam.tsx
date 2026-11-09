@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { Button, cx } from "../ui";
 import { yp } from "../lib/bridge";
 import { beginExam, saveAnswers, submit, type Session } from "../lib/api";
@@ -114,15 +114,13 @@ export default function Exam({ initial, stream, onFinished }: { initial: Session
           <p className="text-xs text-muted">{initial.exam_code} · Proctored mock exam</p>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <div className={cx("flex items-center gap-2 rounded-xl border px-2 py-1", okStatus ? "border-line" : "border-ink")}>
-            <video ref={cam} muted playsInline className="h-9 w-14 -scale-x-100 rounded-md bg-ink object-cover" />
-            <span className="w-44 text-xs font-medium" aria-live="polite">{status}</span>
-          </div>
           {left !== null && <span className={cx("rounded-xl border px-3 py-2 font-mono text-sm font-semibold tabular-nums", left < 300 ? "border-ink" : "border-line")} aria-label="Time left">{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</span>}
           <Button variant="outline" className="h-10" onClick={() => setBoard(!board)}>{board ? "Hide whiteboard" : "Whiteboard"}</Button>
           <Button className="h-10" onClick={() => setConfirm(true)} disabled={submitting}>{submitting ? "Submitting…" : "Submit exam"}</Button>
         </div>
       </header>
+
+      <CameraPanel cam={cam} status={status} ok={!!okStatus} code={`${initial.exam_code || "EXAM"}-${initial.id.slice(0, 8).toUpperCase()}`} />
 
       <div className="flex min-h-0 flex-1">
         <main className="min-w-0 flex-1 overflow-y-auto px-8 py-8">
@@ -230,6 +228,53 @@ function Whiteboard() {
         onPointerMove={(e) => { if (!drawing.current) return; const c = canvas.current!.getContext("2d")!; c.lineWidth = 2.5; c.lineCap = "round"; c.strokeStyle = "#171717"; const [x, y] = pos(e); c.lineTo(x, y); c.stroke(); }}
         onPointerUp={() => { drawing.current = false; }} onPointerLeave={() => { drawing.current = false; }} />
       <Button variant="ghost" className="mt-2 h-9 text-sm" onClick={() => { const c = canvas.current!; c.getContext("2d")!.clearRect(0, 0, c.width, c.height); }}>Clear drawing</Button>
+    </div>
+  );
+}
+
+/*
+ * Floating live camera, like the OnVUE webcam window: shows the candidate
+ * what the proctor sees, the monitor status and the session code to quote
+ * to support. Drag it anywhere (or focus it and use the arrow keys); the
+ * position is kept for the session. The <video> is the one the monitor reads.
+ */
+function CameraPanel({ cam, status, ok, code }: { cam: RefObject<HTMLVideoElement | null>; status: string; ok: boolean; code: string }) {
+  const W = 240, H = 200, KEY = "yp-cam-pos";
+  const clamp = (p: { x: number; y: number }) => ({ x: Math.min(Math.max(8, p.x), window.innerWidth - W - 8), y: Math.min(Math.max(72, p.y), window.innerHeight - H - 8) });
+  const [pos, setPos] = useState(() => {
+    try { const v = JSON.parse(sessionStorage.getItem(KEY) || "null"); if (v) return clamp(v); } catch { /* none saved */ }
+    return clamp({ x: window.innerWidth - W - 24, y: window.innerHeight - H - 24 });
+  });
+  const drag = useRef<{ dx: number; dy: number } | null>(null);
+  useEffect(() => {
+    try { sessionStorage.setItem(KEY, JSON.stringify(pos)); } catch { /* storage blocked */ }
+  }, [pos]);
+  useEffect(() => {
+    const onResize = () => setPos((p) => clamp(p));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = e.shiftKey ? 60 : 20;
+    const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+    if (!d) return;
+    e.preventDefault(); e.stopPropagation();
+    setPos((p) => clamp({ x: p.x + d[0], y: p.y + d[1] }));
+  };
+  return (
+    <div role="group" aria-label="Your camera. Drag to move, or use the arrow keys." tabIndex={0} onKeyDown={onKey}
+      onPointerDown={(e) => { drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y }; e.currentTarget.setPointerCapture(e.pointerId); }}
+      onPointerMove={(e) => { if (drag.current) setPos(clamp({ x: e.clientX - drag.current.dx, y: e.clientY - drag.current.dy })); }}
+      onPointerUp={() => { drag.current = null; }}
+      style={{ left: pos.x, top: pos.y, width: W }}
+      className={cx("fixed z-40 cursor-grab touch-none select-none overflow-hidden rounded-2xl border-2 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] outline-none focus-visible:ring-2 focus-visible:ring-brand active:cursor-grabbing", ok ? "border-line" : "border-ink")}>
+      <video ref={cam} muted playsInline className="pointer-events-none aspect-video w-full -scale-x-100 bg-ink object-cover" />
+      <div className="px-3 py-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold" aria-live="polite">
+          <span aria-hidden="true" className={cx("h-2 w-2 rounded-full", ok ? "bg-brand" : "bg-ink")} />{status}
+        </p>
+        <p className="mt-1 text-[11px] text-muted">Session code <span className="font-mono font-semibold tracking-wide text-ink">{code}</span></p>
+      </div>
     </div>
   );
 }

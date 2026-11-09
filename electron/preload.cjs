@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('yp', {
   askMedia: () => ipcRenderer.invoke('yp:ask-media'),
   openPrivacy: (pane) => ipcRenderer.invoke('yp:open-privacy', pane),
   scanApps: () => ipcRenderer.invoke('yp:scan-apps'),
+  requestScreen: () => ipcRenderer.invoke('yp:request-screen'),
+  relaunch: () => ipcRenderer.invoke('yp:relaunch'),
   redeem: (code) => ipcRenderer.invoke('yp:redeem', code),
   closeApps: (labels) => ipcRenderer.invoke('yp:close-apps', labels),
   lockdown: (on) => ipcRenderer.invoke('yp:lockdown', on),
