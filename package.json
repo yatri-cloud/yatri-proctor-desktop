@@ -1,0 +1,103 @@
+{
+  "name": "yatri-proctor-desktop",
+  "productName": "Yatri Proctor",
+  "version": "1.0.0",
+  "description": "Secure, AI-proctored mock exams for Yatri Pass.",
+  "author": "Yatri Cloud <info@yatricloud.com>",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5317 && cross-env YP_DEV_URL=http://localhost:5317 electron .\"",
+    "build:renderer": "vite build",
+    "start": "npm run build:renderer && electron .",
+    "smoke": "npm run build:renderer && electron . --smoke",
+    "test": "vitest run",
+    "assets": "node scripts/fetch-models.mjs && node scripts/make-icons.mjs",
+    "dist:mac": "npm run build:renderer && electron-builder --mac --publish never",
+    "dist:win": "npm run build:renderer && electron-builder --win --publish never"
+  },
+  "build": {
+    "appId": "com.yatricloud.proctor",
+    "productName": "Yatri Proctor",
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "protocols": [
+      {
+        "name": "Yatri Proctor",
+        "schemes": [
+          "yatriproctor"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Yatri-Proctor-mac-${arch}.${ext}",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSCameraUsageDescription": "Yatri Proctor records your webcam during a proctored exam, as you agreed before the exam.",
+        "NSMicrophoneUsageDescription": "Yatri Proctor listens for voices during a proctored exam, as you agreed before the exam.",
+        "NSScreenCaptureUsageDescription": "Yatri Proctor checks that no other screen or app is shared during your exam."
+      }
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Yatri-Proctor-windows-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.2.2",
+    "@supabase/supabase-js": "^2.119.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "systeminformation": "^5.33.19"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "autoprefixer": "^10.6.2",
+    "concurrently": "^10.0.7",
+    "cross-env": "^10.1.0",
+    "electron": "^44.9.1",
+    "electron-builder": "^26.15.3",
+    "postcss": "^8.5.32",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0",
+    "wait-on": "^9.5.1"
+  }
+}

@@ -1,0 +1,55 @@
+name: Build and release Yatri Proctor
+
+# Push a tag like v1.0.1 to publish installers to GitHub Releases.
+# yatricloud.com/pass/proctor links to releases/latest/download/<file>.
+# Signing switches on automatically when these repo secrets exist:
+#   macOS: CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+#   Windows: WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - name: Models and icons
+        run: |
+          node scripts/fetch-models.mjs
+      - name: Enable macOS signing when secrets exist
+        if: runner.os == 'macOS' && env.CSC_LINK != ''
+        env: { CSC_LINK: "${{ secrets.CSC_LINK }}" }
+        run: |
+          node -e "const f='package.json';const p=require('./'+f);delete p.build.mac.identity;p.build.mac.hardenedRuntime=true;p.build.mac.notarize=true;require('fs').writeFileSync(f,JSON.stringify(p,null,2))"
+      - name: Build
+        shell: bash
+        env:
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.CSC_LINK || secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.CSC_KEY_PASSWORD || secrets.WIN_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then npm run dist:mac; else npm run dist:win; fi
+      - name: Smoke test (Windows build)
+        if: runner.os == 'Windows'
+        run: npx electron . --smoke
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release/*.dmg
+            release/*.exe
