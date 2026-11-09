@@ -93,7 +93,7 @@ function PhoneCheckIn({ session, device, onDone, onUseComputer }: Props & { onUs
               ["Come back here", "When your phone says All photos sent, click Refresh."]].map(([t, d], k) => (
               <li key={t} className="flex gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">{k + 1}</span>
-                <div><p className="font-semibold">{t}</p><p className="text-sm text-muted">{d}</p></div>
+                <div><p className="font-semibold leading-6">{t}</p><p className="mt-0.5 text-sm leading-5 text-muted">{d}</p></div>
               </li>
             ))}
           </ol>

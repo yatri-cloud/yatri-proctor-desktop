@@ -537,7 +537,7 @@ function PermissionsStep({ info, refresh, next, busy, onBack, onPass }: { info: 
       {info && !screenOk && (
         <div className="mt-6 rounded-xl border border-line p-5">
           <p className="font-semibold">How to allow Screen Recording</p>
-          <ol className="mt-3 space-y-4 text-[15px]">
+          <ol className="mt-3 space-y-4 text-[15px] leading-6">
             <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">1</span>
               <div>Ask macOS to add Yatri Proctor to the list.<div className="mt-2"><Button variant="outline" className="h-9" onClick={() => yp.requestScreen().then(() => refresh())}>Allow screen recording</Button></div></div></li>
             <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">2</span>

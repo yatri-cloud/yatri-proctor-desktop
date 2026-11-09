@@ -17,7 +17,7 @@ export default function Ready({ session, onStart }: { session: Session; onStart:
         <h2 className="font-display text-xl font-bold">Exam rules</h2>
         <ol className="mt-4 space-y-3">
           {rules.map((r, i) => (
-            <li key={r} className="flex gap-3 text-[15px]">
+            <li key={r} className="flex gap-3 text-[15px] leading-6">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">{i + 1}</span>
               {r}
             </li>

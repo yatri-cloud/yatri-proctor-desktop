@@ -63,12 +63,12 @@ export function CheckRow({ label, detail, status, action }: { label: string; det
   const text = { pass: "Passed", fail: "Fix needed", warn: "Check", wait: "Checking…" }[status];
   return (
     <li className="flex items-start gap-4 border-b border-line py-4 last:border-0">
-      <span aria-hidden="true" className={cx("mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white",
+      <span aria-hidden="true" className={cx("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white",
         status === "pass" && "bg-brand", status === "fail" && "bg-ink", status === "warn" && "bg-muted", status === "wait" && "animate-pulse bg-line")}>
         {status === "pass" ? "✓" : status === "fail" ? "!" : status === "warn" ? "?" : ""}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="font-semibold text-ink">{label}</p>
+        <p className="font-semibold leading-6 text-ink">{label}</p>
         {detail && <div className="mt-0.5 text-sm text-muted">{detail}</div>}
         {action && <div className="mt-3">{action}</div>}
       </div>

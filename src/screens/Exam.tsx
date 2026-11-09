@@ -138,8 +138,8 @@ export default function Exam({ initial, stream, onFinished }: { initial: Session
                   const on = chosen.includes(k);
                   return (
                     <button key={k} type="button" role={q.multi ? "checkbox" : "radio"} aria-checked={on} onClick={() => pick(k)}
-                      className={cx("flex min-h-[52px] w-full items-start gap-4 rounded-xl border px-4 py-3.5 text-left text-[15px] transition-colors", on ? "border-ink ring-1 ring-ink" : "border-line hover:border-ink/40")}>
-                      <span className={cx("mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold", on ? "border-ink bg-ink text-white" : "border-line text-muted")}>{LETTER(k)}</span>
+                      className={cx("flex min-h-[52px] w-full items-start gap-4 rounded-xl border px-4 py-3.5 text-left text-[15px] leading-6 transition-colors", on ? "border-ink ring-1 ring-ink" : "border-line hover:border-ink/40")}>
+                      <span className={cx("flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold", on ? "border-ink bg-ink text-white" : "border-line text-muted")}>{LETTER(k)}</span>
                       {o}
                     </button>
                   );
