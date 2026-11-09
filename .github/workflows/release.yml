@@ -28,12 +28,28 @@ jobs:
       - name: Models and icons
         run: |
           node scripts/fetch-models.mjs
-      - name: Enable macOS signing when secrets exist
-        if: runner.os == 'macOS' && env.CSC_LINK != ''
-        env: { CSC_LINK: "${{ secrets.CSC_LINK }}" }
+      - name: Check for signing secrets
+        id: sign
+        shell: bash
+        env:
+          MAC_CERT: ${{ secrets.CSC_LINK }}
+          WIN_CERT: ${{ secrets.WIN_CSC_LINK }}
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ] && [ -n "$MAC_CERT" ]; then echo "on=true" >> "$GITHUB_OUTPUT"; fi
+          if [ "$RUNNER_OS" = "Windows" ] && [ -n "$WIN_CERT" ]; then echo "on=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Enable macOS notarisation
+        if: runner.os == 'macOS' && steps.sign.outputs.on == 'true'
         run: |
           node -e "const f='package.json';const p=require('./'+f);delete p.build.mac.identity;p.build.mac.hardenedRuntime=true;p.build.mac.notarize=true;require('fs').writeFileSync(f,JSON.stringify(p,null,2))"
-      - name: Build
+      - name: Build (unsigned)
+        if: steps.sign.outputs.on != 'true'
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then npm run dist:mac; else npm run dist:win; fi
+      - name: Build (signed)
+        if: steps.sign.outputs.on == 'true'
         shell: bash
         env:
           CSC_LINK: ${{ runner.os == 'macOS' && secrets.CSC_LINK || secrets.WIN_CSC_LINK }}
@@ -41,7 +57,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then npm run dist:mac; else npm run dist:win; fi
       - name: Smoke test (Windows build)
