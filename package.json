@@ -1,7 +1,7 @@
 {
   "name": "yatri-proctor-desktop",
   "productName": "Yatri Proctor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Secure, AI-proctored mock exams for Yatri Pass.",
   "author": "Yatri Cloud <info@yatricloud.com>",
   "license": "UNLICENSED",
