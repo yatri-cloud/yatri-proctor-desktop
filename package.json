@@ -1,7 +1,7 @@
 {
   "name": "yatri-proctor-desktop",
   "productName": "Yatri Proctor",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Secure, AI-proctored mock exams for Yatri Pass.",
   "author": "Yatri Cloud <info@yatricloud.com>",
   "license": "UNLICENSED",
@@ -80,11 +80,13 @@
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.2.2",
     "@supabase/supabase-js": "^2.119.0",
+    "qrcode": "^1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "systeminformation": "^5.33.19"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",

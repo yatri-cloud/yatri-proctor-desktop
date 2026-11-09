@@ -239,7 +239,7 @@ function Whiteboard() {
  * position is kept for the session. The <video> is the one the monitor reads.
  */
 function CameraPanel({ cam, status, ok, code }: { cam: RefObject<HTMLVideoElement | null>; status: string; ok: boolean; code: string }) {
-  const W = 240, H = 200, KEY = "yp-cam-pos";
+  const W = 176, H = 150, KEY = "yp-cam-pos";
   const clamp = (p: { x: number; y: number }) => ({ x: Math.min(Math.max(8, p.x), window.innerWidth - W - 8), y: Math.min(Math.max(72, p.y), window.innerHeight - H - 8) });
   const [pos, setPos] = useState(() => {
     try { const v = JSON.parse(sessionStorage.getItem(KEY) || "null"); if (v) return clamp(v); } catch { /* none saved */ }
@@ -267,13 +267,13 @@ function CameraPanel({ cam, status, ok, code }: { cam: RefObject<HTMLVideoElemen
       onPointerMove={(e) => { if (drag.current) setPos(clamp({ x: e.clientX - drag.current.dx, y: e.clientY - drag.current.dy })); }}
       onPointerUp={() => { drag.current = null; }}
       style={{ left: pos.x, top: pos.y, width: W }}
-      className={cx("fixed z-40 cursor-grab touch-none select-none overflow-hidden rounded-2xl border-2 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] outline-none focus-visible:ring-2 focus-visible:ring-brand active:cursor-grabbing", ok ? "border-line" : "border-ink")}>
+      className={cx("fixed z-40 cursor-grab touch-none select-none overflow-hidden rounded-xl border-2 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.18)] outline-none focus-visible:ring-2 focus-visible:ring-brand active:cursor-grabbing", ok ? "border-line" : "border-ink")}>
       <video ref={cam} muted playsInline className="pointer-events-none aspect-video w-full -scale-x-100 bg-ink object-cover" />
-      <div className="px-3 py-2">
-        <p className="flex items-center gap-1.5 text-xs font-semibold" aria-live="polite">
+      <div className="px-2.5 py-1.5">
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold leading-tight" aria-live="polite">
           <span aria-hidden="true" className={cx("h-2 w-2 rounded-full", ok ? "bg-brand" : "bg-ink")} />{status}
         </p>
-        <p className="mt-1 text-[11px] text-muted">Session code <span className="font-mono font-semibold tracking-wide text-ink">{code}</span></p>
+        <p className="mt-0.5 truncate text-[10px] text-muted">Code <span className="font-mono font-semibold text-ink">{code}</span></p>
       </div>
     </div>
   );

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { Button, Card, Shell, cx } from "../ui";
 import type { SystemInfo } from "../lib/bridge";
-import { frame, saveCheckin, uploadImage, type Session } from "../lib/api";
+import { createMobileCheckin, downloadImage, frame, mobileRetake, mobileStatus, saveCheckin, uploadImage, type Session } from "../lib/api";
 import { faceModel } from "../lib/monitor";
+import { SITE_URL } from "../config";
 
 type Shot = { key: string; title: string; help: string; optional?: boolean; needsFace?: boolean };
 const SHOTS: Shot[] = [
@@ -15,12 +17,120 @@ const SHOTS: Shot[] = [
   { key: "room-left", title: "Room: your left", help: "Turn to show the area on your left, then turn back." },
 ];
 
+type Props = { session: Session; device: SystemInfo | null; stream: MediaStream; onDone: () => void };
+
 /*
  * Check-in (like OnVUE): headshot (must show exactly one face), ID front and
- * back (optional for mock exams), four room photos. Each photo uploads to the
- * private proctor-media bucket; the list is saved on the session.
+ * back (optional for mock exams), four room photos. By default the photos are
+ * taken on the learner's phone (QR code -> yatricloud.com/pass/checkin); the
+ * computer's camera is the fallback. Either way they land in the private
+ * proctor-media bucket and the list is saved on the session.
  */
-export default function CheckIn({ session, device, stream, onDone }: { session: Session; device: SystemInfo | null; stream: MediaStream; onDone: () => void }) {
+export default function CheckIn(p: Props) {
+  const [mode, setMode] = useState<"phone" | "computer">("phone");
+  return mode === "phone" ? <PhoneCheckIn {...p} onUseComputer={() => setMode("computer")} /> : <ComputerCheckIn {...p} onUsePhone={() => setMode("phone")} />;
+}
+
+const ROOM = ["room-front", "room-right", "room-back", "room-left"];
+
+function PhoneCheckIn({ session, device, onDone, onUseComputer }: Props & { onUseComputer: () => void }) {
+  const [qr, setQr] = useState<string | null>(null);
+  const [state, setState] = useState<Awaited<ReturnType<typeof mobileStatus>>>(null);
+  const [checking, setChecking] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const newCode = useCallback(async () => {
+    setError(null); setQr(null);
+    try {
+      const token = await createMobileCheckin(session.id);
+      setQr(await QRCode.toDataURL(`${SITE_URL}/pass/checkin#t=${token}`, { margin: 1, width: 560, errorCorrectionLevel: "M", color: { dark: "#0f172a", light: "#ffffff" } }));
+    } catch (e) { setError((e as Error).message); }
+  }, [session.id]);
+  useEffect(() => { newCode(); }, [newCode]);
+
+  async function refresh() {
+    setChecking(true); setMessage(null); setError(null);
+    try {
+      const st = await mobileStatus(session.id);
+      setState(st);
+      const photos = st?.photos || {};
+      const need = st?.id_skipped ? 5 : 7;
+      const got = Object.keys(photos).length;
+      if (!st?.completed_at) { setMessage(got ? `${got} of ${need} photos received. Finish on your phone, then click Refresh.` : "No photos yet. Scan the QR code with your phone and take the photos."); return; }
+      // The headshot must show exactly one face, same rule as the computer camera.
+      if (!device?.e2e) {
+        try {
+          const bmp = await createImageBitmap(await downloadImage(photos.headshot));
+          const faces = (await faceModel()).detectForVideo(bmp, performance.now()).faceLandmarks.length;
+          bmp.close();
+          if (faces !== 1) {
+            await mobileRetake(session.id, "headshot");
+            setState(await mobileStatus(session.id));
+            setMessage(faces === 0 ? "We cannot see a face in your photo. On your phone, take Your photo again with your face in good light, then click Refresh." : "More than one face is in your photo. Only you should be in it. Take it again on your phone, then click Refresh.");
+            return;
+          }
+        } catch { /* model unavailable: the reviewer checks the photo */ }
+      }
+      await saveCheckin(session.id, device, { photos, id_skipped: st.id_skipped, via: "phone", at: new Date().toISOString() });
+      onDone();
+    } catch (e) { setError((e as Error).message); } finally { setChecking(false); }
+  }
+
+  const photos = state?.photos || {};
+  const list = [["headshot", "Your photo"], ["id-front", "ID, front"], ["id-back", "ID, back"], ...ROOM.map((k) => [k, `Room: ${k.replace("room-", "").replace("back", "behind you").replace("front", "in front of you").replace(/^(right|left)$/, "your $1")}`])]
+    .filter(([k]) => !(state?.id_skipped && k.startsWith("id-")));
+  return (
+    <Shell step={1} title="Check-in" subtitle="Take your check-in photos with your phone">
+      <Card className="max-w-4xl p-8">
+        <div className="flex items-center gap-8">
+          <div className="flex h-52 w-52 shrink-0 items-center justify-center rounded-2xl border border-line bg-white p-2.5">
+            {qr ? <img src={qr} alt="QR code that opens check-in on your phone" className="h-full w-full" /> : <span className="text-sm text-muted">{error ? "No code" : "Making code…"}</span>}
+          </div>
+          <ol className="min-w-0 flex-1 space-y-4 text-[15px]">
+            {[["Scan the code", "Open the camera on your phone and point it at the code. Tap the link that appears."],
+              ["Take the photos", "Your photo, your ID (front and back, optional for mock exams) and four photos of your room."],
+              ["Come back here", "When your phone says All photos sent, click Refresh."]].map(([t, d], k) => (
+              <li key={t} className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">{k + 1}</span>
+                <div><p className="font-semibold">{t}</p><p className="text-sm text-muted">{d}</p></div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <ul aria-label="Photos received" className="mt-6 grid grid-cols-2 gap-x-6 gap-y-2 rounded-xl border border-line p-4 text-sm sm:grid-cols-4">
+          {list.map(([k, t]) => (
+            <li key={k} className="flex items-center gap-2">
+              <span className={cx("flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold", photos[k] ? "border-brand bg-brand text-white" : "border-line")}>{photos[k] ? "✓" : ""}</span>
+              <span className={photos[k] ? "font-semibold text-ink" : "text-muted"}>{t}</span>
+            </li>
+          ))}
+        </ul>
+
+        {message && <p role="status" className="mt-4 rounded-xl bg-canvas px-4 py-3 text-sm font-semibold">{message}</p>}
+        {error && <p role="alert" className="mt-4 text-sm font-semibold">{error}</p>}
+        <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-line pt-6">
+          <Button onClick={refresh} disabled={checking || !qr}>{checking ? "Checking…" : "Refresh"}</Button>
+          <Button variant="outline" onClick={newCode}>Show a new QR code</Button>
+          <Button variant="ghost" onClick={onUseComputer}>No phone? Use this computer's camera</Button>
+        </div>
+        <details className="mt-6 rounded-xl border border-line bg-canvas px-4 py-3 text-sm">
+          <summary className="cursor-pointer select-none font-semibold">Having trouble? Fix it here</summary>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 leading-relaxed text-ink/80">
+            <li>Nothing happens when you scan: use the phone's built-in Camera app (iPhone) or Google Lens (Android), held 20 to 30 cm from the screen.</li>
+            <li>The phone says the link expired: links last 30 minutes. Click Show a new QR code and scan again. Photos already sent are kept.</li>
+            <li>Photos will not send: switch the phone from Wi-Fi to mobile data, or the other way round.</li>
+            <li>Refresh says photos are missing: finish every photo on the phone and tap Finish check-in.</li>
+            <li>After check-in, put the phone face down out of reach. Phones are not allowed during the exam.</li>
+          </ol>
+        </details>
+      </Card>
+    </Shell>
+  );
+}
+
+function ComputerCheckIn({ session, device, stream, onDone, onUsePhone }: Props & { onUsePhone: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const [i, setI] = useState(0);
   const [preview, setPreview] = useState<{ url: string; blob: Blob } | null>(null);
@@ -92,6 +202,7 @@ export default function CheckIn({ session, device, stream, onDone }: { session: 
               </>
             )}
             {shot.optional && !preview && <Button variant="ghost" onClick={() => setSkipId(true)}>Skip ID (mock exam)</Button>}
+            {!preview && <Button variant="ghost" onClick={onUsePhone}>Use my phone instead</Button>}
           </div>
         </Card>
         <Card>

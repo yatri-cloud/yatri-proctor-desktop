@@ -99,3 +99,32 @@ export async function beginExam(id: string): Promise<string> {
   if (error) fail(error.message);
   return data as string;
 }
+
+/* ---------------------------------------------------------------- phone check-in */
+
+export type MobileStatus = { photos: Record<string, string>; id_skipped: boolean; completed_at: string | null; expires_at: string } | null;
+
+/** New one-time phone link for this session (30 minutes); returns the token for the QR code. */
+export async function createMobileCheckin(sessionId: string): Promise<string> {
+  const { data, error } = await supabase.rpc("pass_create_mobile_checkin", { p_session: sessionId });
+  if (error) fail(error.message);
+  return data as string;
+}
+
+export async function mobileStatus(sessionId: string): Promise<MobileStatus> {
+  const { data, error } = await supabase.rpc("pass_proctor_mobile_status", { p_session: sessionId });
+  if (error) fail(error.message);
+  return (data as MobileStatus) ?? null;
+}
+
+/** Asks the phone to take one photo again (for example a headshot with no face). */
+export async function mobileRetake(sessionId: string, key: string) {
+  const { error } = await supabase.rpc("pass_proctor_mobile_retake", { p_session: sessionId, p_key: key });
+  if (error) fail(error.message);
+}
+
+export async function downloadImage(path: string): Promise<Blob> {
+  const { data, error } = await supabase.storage.from("proctor-media").download(path);
+  if (error || !data) fail(error?.message);
+  return data!;
+}
