@@ -40,7 +40,8 @@ let lockdown = { on: false, blocker: null, procTimer: null, clipTimer: null };
 
 /* ------------------------------------------------------------ single instance + deep links */
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// Automated tests may run next to a developer's open copy of the app.
+if (!E2E && !app.requestSingleInstanceLock()) app.quit();
 
 if (process.defaultApp && process.argv.length >= 2) {
   app.setAsDefaultProtocolClient(SCHEME, process.execPath, [path.resolve(process.argv[1])]);
@@ -204,7 +205,7 @@ async function virtualMachine() {
 }
 
 function permission(kind) {
-  if (process.platform !== 'darwin') return 'granted';
+  if (process.platform !== 'darwin' || E2E) return 'granted';
   try { return systemPreferences.getMediaAccessStatus(kind); } catch { return 'unknown'; }
 }
 
