@@ -6,11 +6,9 @@ import { createMobileCheckin, downloadImage, frame, mobileRetake, mobileStatus, 
 import { faceModel } from "../lib/monitor";
 import { SITE_URL } from "../config";
 
-type Shot = { key: string; title: string; help: string; optional?: boolean; needsFace?: boolean };
+type Shot = { key: string; title: string; help: string; needsFace?: boolean };
 const SHOTS: Shot[] = [
   { key: "headshot", title: "Your photo", help: "Look straight at the camera, face fully visible, no hat or sunglasses.", needsFace: true },
-  { key: "id-front", title: "ID, front", help: "Hold a government ID (Aadhaar, PAN, passport, driving licence) close to the camera.", optional: true },
-  { key: "id-back", title: "ID, back", help: "Turn the ID over.", optional: true },
   { key: "room-front", title: "Room: in front of you", help: "Turn your laptop or webcam to show your desk and the wall in front of you." },
   { key: "room-right", title: "Room: your right", help: "Turn to show the area on your right." },
   { key: "room-back", title: "Room: behind you", help: "Turn to show what is behind you." },
@@ -20,8 +18,9 @@ const SHOTS: Shot[] = [
 type Props = { session: Session; device: SystemInfo | null; stream: MediaStream; onDone: () => void };
 
 /*
- * Check-in (like OnVUE): headshot (must show exactly one face), ID front and
- * back (optional for mock exams), four room photos. By default the photos are
+ * Check-in (like OnVUE): headshot (must show exactly one face) and four room
+ * photos. No ID documents since 1.0.7 (DPDP data minimisation; storage also
+ * refuses checkin-id-* uploads). By default the photos are
  * taken on the learner's phone (QR code -> yatricloud.com/pass/checkin); the
  * computer's camera is the fallback. Either way they land in the private
  * proctor-media bucket and the list is saved on the session.
@@ -55,7 +54,7 @@ function PhoneCheckIn({ session, device, onDone, onUseComputer }: Props & { onUs
       const st = await mobileStatus(session.id);
       setState(st);
       const photos = st?.photos || {};
-      const need = st?.id_skipped ? 5 : 7;
+      const need = 5;
       const got = Object.keys(photos).length;
       if (!st?.completed_at) { setMessage(got ? `${got} of ${need} photos received. Finish on your phone, then click Refresh.` : "No photos yet. Scan the QR code with your phone and take the photos."); return; }
       // The headshot must show exactly one face, same rule as the computer camera.
@@ -72,14 +71,13 @@ function PhoneCheckIn({ session, device, onDone, onUseComputer }: Props & { onUs
           }
         } catch { /* model unavailable: the reviewer checks the photo */ }
       }
-      await saveCheckin(session.id, device, { photos, id_skipped: st.id_skipped, via: "phone", at: new Date().toISOString() });
+      await saveCheckin(session.id, device, { photos, id_skipped: true, via: "phone", at: new Date().toISOString() });
       onDone();
     } catch (e) { setError((e as Error).message); } finally { setChecking(false); }
   }
 
   const photos = state?.photos || {};
-  const list = [["headshot", "Your photo"], ["id-front", "ID, front"], ["id-back", "ID, back"], ...ROOM.map((k) => [k, `Room: ${k.replace("room-", "").replace("back", "behind you").replace("front", "in front of you").replace(/^(right|left)$/, "your $1")}`])]
-    .filter(([k]) => !(state?.id_skipped && k.startsWith("id-")));
+  const list = [["headshot", "Your photo"], ...ROOM.map((k) => [k, `Room: ${k.replace("room-", "").replace("back", "behind you").replace("front", "in front of you").replace(/^(right|left)$/, "your $1")}`])];
   return (
     <Shell step={1} title="Check-in" subtitle="Take your check-in photos with your phone">
       <Card className="max-w-4xl p-8">
@@ -89,7 +87,7 @@ function PhoneCheckIn({ session, device, onDone, onUseComputer }: Props & { onUs
           </div>
           <ol className="min-w-0 flex-1 space-y-4 text-[15px]">
             {[["Scan the code", "Open the camera on your phone and point it at the code. Tap the link that appears."],
-              ["Take the photos", "Your photo, your ID (front and back, optional for mock exams) and four photos of your room."],
+              ["Take the photos", "Your photo and four photos of your room. No ID document is needed."],
               ["Come back here", "When your phone says All photos sent, click Refresh."]].map(([t, d], k) => (
               <li key={t} className="flex gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">{k + 1}</span>
@@ -135,7 +133,6 @@ function ComputerCheckIn({ session, device, stream, onDone, onUsePhone }: Props 
   const [i, setI] = useState(0);
   const [preview, setPreview] = useState<{ url: string; blob: Blob } | null>(null);
   const [paths, setPaths] = useState<Record<string, string>>({});
-  const [skipId, setSkipId] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -144,7 +141,7 @@ function ComputerCheckIn({ session, device, stream, onDone, onUsePhone }: Props 
     faceModel().catch(() => {}); // warm up for the exam
   }, [stream, preview]);
 
-  const shots = SHOTS.filter((s) => !(skipId && s.optional));
+  const shots = SHOTS;
   const shot = shots[i];
 
   async function capture() {
@@ -172,7 +169,7 @@ function ComputerCheckIn({ session, device, stream, onDone, onUsePhone }: Props 
       setPreview(null);
       if (i + 1 < shots.length) setI(i + 1);
       else {
-        await saveCheckin(session.id, device, { photos: next, id_skipped: skipId, at: new Date().toISOString() });
+        await saveCheckin(session.id, device, { photos: next, id_skipped: true, at: new Date().toISOString() });
         onDone();
       }
     } catch (e) {
@@ -201,7 +198,6 @@ function ComputerCheckIn({ session, device, stream, onDone, onUsePhone }: Props 
                 <Button variant="outline" onClick={() => { URL.revokeObjectURL(preview.url); setPreview(null); }}>Retake</Button>
               </>
             )}
-            {shot.optional && !preview && <Button variant="ghost" onClick={() => setSkipId(true)}>Skip ID (mock exam)</Button>}
             {!preview && <Button variant="ghost" onClick={onUsePhone}>Use my phone instead</Button>}
           </div>
         </Card>
